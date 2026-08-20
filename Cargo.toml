@@ -1,0 +1,31 @@
+[package]
+name = "video-shader"
+version = "0.1.0"
+edition = "2021"
+description = "Apply mpv-style GLSL shaders to video files (MP4/WebM) on the GPU"
+license = "MIT"
+readme = "README.md"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+env_logger = "0.11"
+ffmpeg-next = { version = "5.1", default-features = false, features = [
+    "codec",
+    "format",
+    "software-scaling",
+] }
+ffmpeg-sys-next = { version = "5.1", default-features = false, features = [
+    "avcodec",
+] }
+indicatif = "0.17"
+libc = "0.2"
+log = "0.4"
+pollster = "0.4"
+wgpu = { version = "25", features = ["glsl"] }
+
+[dev-dependencies]
+naga = { version = "25", features = ["glsl-in"] }
+
+[profile.release]
+lto = true

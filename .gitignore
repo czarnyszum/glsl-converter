@@ -59,3 +59,13 @@ dist/
 
 # Flycheck
 flycheck_*.el
+
+
+# Added by cargo
+
+/target
+
+# local cargo home (sandbox workaround)
+.cargo-home/
+.scratch/
+.tmp-inspect/
