@@ -40,10 +40,11 @@ pub struct PassPipeline {
 
 /// One compiled shader pass, with bind groups for both ping-pong textures.
 struct CompiledPass {
+    strength: f32,
     pipeline: wgpu::RenderPipeline,
     bind_group_a: wgpu::BindGroup,
     bind_group_b: wgpu::BindGroup,
-    _params: wgpu::Buffer,
+    params: wgpu::Buffer,
 }
 
 /// GPU handle plus the per-frame processing state.
@@ -142,7 +143,7 @@ fn layout_entries(texture_count: usize) -> Vec<wgpu::BindGroupLayoutEntry> {
         ty: wgpu::BindingType::Buffer {
             ty: wgpu::BufferBindingType::Uniform,
             has_dynamic_offset: false,
-            min_binding_size: wgpu::BufferSize::new(4),
+            min_binding_size: wgpu::BufferSize::new(16),
         },
         count: None,
     }];
@@ -326,10 +327,11 @@ impl FrameProcessor {
                     p.texture_count,
                 );
                 CompiledPass {
+                    strength: p.strength,
                     pipeline: p.pipeline,
                     bind_group_a,
                     bind_group_b,
-                    _params: p.params,
+                    params: p.params,
                 }
             })
             .collect::<Vec<_>>();
@@ -360,7 +362,14 @@ impl FrameProcessor {
     ///
     /// `rgba` is `height` rows of `stride` bytes each (rows are tight iff
     /// `stride == width * 4`).
-    pub fn process_frame(&mut self, rgba: &[u8], stride: usize) -> Result<Vec<u8>> {
+    /// `frame_index` is exposed to shaders as the `frame` uniform (float), so
+    /// shaders can implement temporal effects (film grain, temporal dither).
+    pub fn process_frame(
+        &mut self,
+        rgba: &[u8],
+        stride: usize,
+        frame_index: u32,
+    ) -> Result<Vec<u8>> {
         let w = self.width;
         let h = self.height;
         let tight = w as usize * 4;
@@ -394,6 +403,13 @@ impl FrameProcessor {
         let mut enc = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
+        // Refresh the per-pass Params uniform: { float strength; float frame; }
+        for pass in &self.passes {
+            let mut params = [0u8; 16];
+            params[0..4].copy_from_slice(&pass.strength.to_le_bytes());
+            params[4..8].copy_from_slice(&(frame_index as f32).to_le_bytes());
+            self.queue.write_buffer(&pass.params, 0, &params);
+        }
         for pass in &self.passes {
             let (input_view, output_texture, output_view) = if src_is_a {
                 (&self.view_a, &self.tex_b, &self.view_b)

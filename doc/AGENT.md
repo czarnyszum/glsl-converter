@@ -135,8 +135,11 @@ What it does, in order:
   through the `sampler2D(N_tex, N_sampler)` constructor macro.
 - No user vertex inputs: `N_pos` is derived from `gl_FragCoord` (a native naga
   builtin), which avoids stage-interface interpolation mismatches.
-- Anonymous uniform block (`uniform Params { float strength; };` without an
-  instance name) is supported by naga.
+- Anonymous uniform block (`uniform Params { float strength; float frame; };`
+  without an instance name) is supported by naga. `frame` is the running frame
+  index written by the host each frame (`FrameProcessor::process_frame` takes a
+  `frame_index` argument and refreshes the params buffer per pass per frame) so
+  shaders can do temporal effects; `strength` is the pipeline value.
 
 ### `src/gpu.rs` — wgpu
 
@@ -158,16 +161,19 @@ Public API:
   ping-pong RGBA8 textures, the sampler, the readback staging buffer, and the
   per-pass bind groups (`bind_group_a`/`bind_group_b` bind the input texture,
   either A or B). Validates size against `max_texture_dimension_2d`.
-- `FrameProcessor::process_frame(&mut self, rgba: &[u8], stride) -> Result<Vec<u8>>`
-  — upload (`queue.write_texture`, arbitrary stride OK) → run passes ping-pong
+- `FrameProcessor::process_frame(&mut self, rgba: &[u8], stride, frame_index)
+  -> Result<Vec<u8>>` — refreshes the per-pass Params uniform
+  ({strength, frame}), upload (`queue.write_texture`, arbitrary stride OK) →
+  run passes ping-pong
   → `copy_texture_to_buffer` into staging (rows padded to 256 for
   `COPY_BYTES_PER_ROW_ALIGNMENT`) → `map_async` + `poll(PollType::Wait)` →
   copy out tightly packed RGBA8.
 
 **Bind-group layout contract** (must match the GLSL header, verified by
 `tests/shader_compile.rs`):
-binding 0 = uniform buffer (`Params { float strength; }`), then per texture k:
-binding `1+2k` = `texture2D` view, binding `2+2k` = `sampler`.
+binding 0 = uniform buffer (`Params { float strength; float frame; }`, 16-byte
+buffer, `min_binding_size` must cover the block — set to 16), then per texture
+k: binding `1+2k` = `texture2D` view, binding `2+2k` = `sampler`.
 
 **Hard-won constraint — one submit per frame:** separate `queue.submit` calls
 for the render pass and the readback copy crash the ancient lavapipe driver
@@ -254,6 +260,8 @@ Before changing anything, make sure you keep all of these:
    (`COPY_BYTES_PER_ROW_ALIGNMENT`); upload rows may be arbitrary (wgpu only
    requires 256-alignment for buffer-side copies).
 6. `VideoProcessor::run` consumes `self` (borrow structure).
+7. The Params uniform block is `{ float strength; float frame; }`; the bind
+   group layout's `min_binding_size` must stay ≥ the block size (16).
 7. ffmpeg crates are pinned to 5.1 and wgpu/naga to 25 — see §8.
 8. ffmpeg's log level is Info; wgpu's GLSL path needs `wgpu` "glsl" feature.
 

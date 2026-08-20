@@ -71,10 +71,20 @@ mpv-style GLSL user shaders, preprocessed for this tool:
   `N_offset` (for `N` = `MAIN` and every `BIND`); `HOOKED` is an alias for the
   main texture.
 * `gl_FragCoord` is approximated as pixel coordinates (top-left origin).
+* `strength` (pipeline value) and `frame` (running frame index, for temporal
+  effects like animated film grain or temporal dithering) are available as
+  globals in `hook()`.
 * Custom `//!TEXTURE`/`//!LUT` bindings are **not** supported.
 
-`examples/` contains a simple greyscale shader and a copy of a local-contrast
-shader that exercises `HOOKED_texOff` with a 7×7 kernel.
+`examples/` contains:
+* `greyscale.glsl` — the simplest possible pass-through demo;
+* `stbw.glsl` / `st0-enhanced.glsl` — local-contrast shaders. `st0-enhanced`
+  fixes two bugs present in the originals (a kernel array indexed out of
+  bounds, and a comma expression that silently dropped the x offset) and adds
+  two-scale, halo-aware, `strength`-scaled local contrast in Oklab space;
+* `hifi.glsl` — animated film grain (zero-mean, shadow-weighted, ~2.5% at
+  strength 1) plus 4×4 Bayer temporal dithering to eliminate 8-bit gradient
+  banding. Dithering stays active even at strength 0.
 
 ## Examples
 

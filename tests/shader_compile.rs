@@ -68,19 +68,24 @@ fn check_bindings(module: &naga::Module, texture_count: usize) {
 }
 
 #[test]
-fn greyscale_example_compiles() {
-    let path = "examples/greyscale.glsl";
-    let glsl = preprocess_or_skip(path).expect("examples/greyscale.glsl must exist");
-    let module = validate(&glsl).unwrap_or_else(|e| panic!("greyscale shader: {e}"));
-    check_bindings(&module, 1);
-}
-
-#[test]
-fn pipeline_example_compiles() {
-    let path = "examples/stbw.glsl";
-    let glsl = preprocess_or_skip(path).expect("examples/stbw.glsl must exist");
-    let module = validate(&glsl).unwrap_or_else(|e| panic!("stbw shader: {e}"));
-    check_bindings(&module, 1);
+fn all_example_shaders_compile() {
+    // Every committed example shader must survive preprocessing + naga
+    // validation (the closest offline approximation of GPU compilation).
+    let mut found_any = false;
+    for entry in std::fs::read_dir("examples").expect("examples dir must exist") {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|e| e.to_str()) != Some("glsl") {
+            continue;
+        }
+        found_any = true;
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        let source = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let pre = video_shader::glsl::preprocess(&source, &name, 1.0)
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let module = validate(&pre.glsl).unwrap_or_else(|e| panic!("{name}: {e}"));
+        check_bindings(&module, pre.texture_count);
+    }
+    assert!(found_any, "no example shaders found");
 }
 
 #[test]

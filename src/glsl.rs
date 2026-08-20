@@ -170,7 +170,11 @@ pub fn preprocess(source: &str, file_name: &str, strength: f32) -> Result<Prepro
     if !meta.desc.is_empty() {
         out.push_str(&format!("// {}\n", meta.desc));
     }
-    out.push_str("layout(set = 0, binding = 0) uniform Params { float strength; };\n");
+    // `frame` is the running frame index (float), written by the host every
+    // frame so shaders can do temporal effects (film grain, temporal dither).
+    out.push_str(
+        "layout(set = 0, binding = 0) uniform Params { float strength; float frame; };\n",
+    );
     // naga's GLSL frontend requires separate texture and sampler objects
     // (the combined `sampler2D` declaration type is not supported), so each
     // texture gets a `texture2D` at binding 1+2k and a `sampler` at 2+2k.

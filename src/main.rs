@@ -132,8 +132,10 @@ fn main() -> Result<()> {
     pb.set_message("starting");
 
     let start = Instant::now();
+    let mut frame_index = 0u32;
     let stats = video_proc.run(|data, stride| {
-        let processed = frame_proc.process_frame(data, stride)?;
+        let processed = frame_proc.process_frame(data, stride, frame_index)?;
+        frame_index += 1;
         pb.inc(1);
         let elapsed = start.elapsed().as_secs_f64();
         let done = pb.position();
